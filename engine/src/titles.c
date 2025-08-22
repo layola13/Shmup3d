@@ -273,7 +273,12 @@ void TITLE_Render(void)
 
 void TITLE_FreeRessources()
 {
+#ifdef __EMSCRIPTEN__
+	// 在WebAssembly环境下禁用纹理卸载以避免函数签名不匹配错误
+	// TEX_UnloadTexture(&titleTexture);
+#else
 	TEX_UnloadTexture(&titleTexture);
+#endif
 	//free(titleTexture.path);
 }
 

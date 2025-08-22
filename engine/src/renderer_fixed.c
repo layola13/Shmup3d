@@ -34,7 +34,10 @@
 
 
 #include "target.h"
-#if defined(SHMUP_TARGET_WINDOWS)
+#if defined(__EMSCRIPTEN__)
+    #include <GLES2/gl2.h>
+    #include <GLES/gl.h>
+#elif defined(SHMUP_TARGET_WINDOWS)
 	#include "GLES/gl.h"
 #elif defined(SHMUP_TARGET_MACOSX)
     #include "OpenGL/gl.h"

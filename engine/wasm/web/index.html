@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shmup3D WebAssembly</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #canvas {
+            border: 1px solid #333;
+            cursor: crosshair;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 100;
+        }
+        
+        #loadingText {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        
+        #progressBar {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #progressFill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00aa00);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        
+        <div id="loading">
+            <div id="loadingText">加载中...</div>
+            <div id="progressBar">
+                <div id="progressFill"></div>
+            </div>
+        </div>
+        
+        <div id="controls" class="hidden">
+            <div>控制说明:</div>
+            <div>WASD - 移动</div>
+            <div>鼠标 - 瞄准</div>
+            <div>左键 - 射击</div>
+            <div>空格 - 炸弹</div>
+        </div>
+    </div>
+
+    <script src="shmup.js"></script>
+    <script>
+        // 游戏配置
+        const config = {
+            canvas: document.getElementById('canvas'),
+            width: 800,
+            height: 600,
+            fullscreen: false
+        };
+
+        // 加载进度
+        let progress = 0;
+        const progressFill = document.getElementById('progressFill');
+        const loadingText = document.getElementById('loadingText');
+
+        function updateProgress(value) {
+            progress = Math.min(100, Math.max(0, value));
+            progressFill.style.width = progress + '%';
+            
+            if (progress >= 100) {
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('controls').classList.remove('hidden');
+                }, 500);
+            }
+        }
+
+        // 创建Shmup模块
+        const Module = {
+            canvas: config.canvas,
+            width: config.width,
+            height: config.height,
+
+            // SDL WebGL配置
+            preRun: [
+                function() {
+                    // 设置SDL环境变量
+                    ENV.SDL_EMSCRIPTEN_KEYBOARD_ELEMENT = "#canvas";
+
+                    // 确保WebGL上下文可用
+                    const canvas = document.getElementById('canvas');
+                    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                    if (!gl) {
+                        console.error('WebGL not supported');
+                        loadingText.textContent = '您的浏览器不支持WebGL';
+                        return;
+                    }
+                    console.log('WebGL context initialized successfully');
+                }
+            ],
+            
+            onRuntimeInitialized: function() {
+                console.log('Shmup3D WASM模块已初始化');
+                updateProgress(100);
+            },
+            
+            onAbort: function(what) {
+                console.error('WASM模块加载失败:', what);
+                loadingText.textContent = '加载失败: ' + what;
+            },
+            
+            preRun: [],
+            postRun: [],
+            
+            print: function(text) {
+                console.log('[WASM]', text);
+            },
+            
+            printErr: function(text) {
+                console.error('[WASM]', text);
+            },
+            
+            setStatus: function(text) {
+                if (text) {
+                    loadingText.textContent = text;
+                }
+            },
+            
+            monitorRunDependencies: function(left) {
+                const total = 100;
+                const current = total - left;
+                updateProgress((current / total) * 100);
+            }
+        };
+
+        // 键盘事件处理
+        document.addEventListener('keydown', (e) => {
+            if (Module.ccall) {
+                Module.ccall('wasm_input_key_event', null, ['number', 'number'], [e.keyCode, 1]);
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (Module.ccall) {
+                Module.ccall('wasm_input_key_event', null, ['number', 'number'], [e.keyCode, 0]);
+            }
+        });
+
+        // 鼠标事件处理
+        config.canvas.addEventListener('mousemove', (e) => {
+            const rect = config.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            if (Module.ccall) {
+                Module.ccall('wasm_input_mouse_move', null, ['number', 'number'], [x, y]);
+            }
+        });
+
+        config.canvas.addEventListener('mousedown', (e) => {
+            if (Module.ccall) {
+                Module.ccall('wasm_input_mouse_button', null, ['number', 'number'], [e.button, 1]);
+            }
+        });
+
+        config.canvas.addEventListener('mouseup', (e) => {
+            if (Module.ccall) {
+                Module.ccall('wasm_input_mouse_button', null, ['number', 'number'], [e.button, 0]);
+            }
+        });
+
+        // 触摸事件处理
+        config.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = config.canvas.getBoundingClientRect();
+            
+            for (let touch of e.changedTouches) {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                if (Module.ccall) {
+                    Module.ccall('wasm_input_touch_event', null, ['number', 'number', 'number', 'number'], [touch.identifier, x, y, 0]);
+                }
+            }
+        });
+
+        config.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = config.canvas.getBoundingClientRect();
+            
+            for (let touch of e.changedTouches) {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                if (Module.ccall) {
+                    Module.ccall('wasm_input_touch_event', null, ['number', 'number', 'number', 'number'], [touch.identifier, x, y, 1]);
+                }
+            }
+        });
+
+        config.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            const rect = config.canvas.getBoundingClientRect();
+            
+            for (let touch of e.changedTouches) {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                if (Module.ccall) {
+                    Module.ccall('wasm_input_touch_event', null, ['number', 'number', 'number', 'number'], [touch.identifier, x, y, 2]);
+                }
+            }
+        });
+
+        // 全屏切换
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                config.canvas.requestFullscreen().catch(err => {
+                    console.error('无法进入全屏模式:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // 窗口大小调整
+        function resizeCanvas() {
+            const container = document.getElementById('gameContainer');
+            const aspectRatio = config.width / config.height;
+            
+            let newWidth = container.clientWidth;
+            let newHeight = container.clientHeight;
+            
+            if (newWidth / newHeight > aspectRatio) {
+                newWidth = newHeight * aspectRatio;
+            } else {
+                newHeight = newWidth / aspectRatio;
+            }
+            
+            config.canvas.style.width = newWidth + 'px';
+            config.canvas.style.height = newHeight + 'px';
+            
+            if (Module.ccall) {
+                Module.ccall('wasm_display_resize', null, ['number', 'number'], [newWidth, newHeight]);
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', resizeCanvas);
+
+        // 初始化
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            
+            // 加载WASM模块
+            const script = document.createElement('script');
+            script.src = 'shmup.js';
+            document.body.appendChild(script);
+        });
+    </script>
+</body>
+</html>

@@ -252,19 +252,12 @@ void TEX_LoadFromDiskAndUploadToGPU(texture_t* tmpTex)
 	tmpTex->format = TEXTURE_TYPE_UNKNOWN;
 	
 	
-	if (extension[0] == 'p' &&
-		extension[1] == 'v' &&
-		extension[2] == 'r')
+	if (strcmp(extension, "pvr") == 0)
 	{
-	
 		loadNativePVRT(tmpTex);
 	}
-	
-	if (extension[0] == 'p' &&
-		extension[1] == 'n' &&
-		extension[2] == 'g')
+	else if (strcmp(extension, "png") == 0)
 	{
-	
 		loadNativePNG(tmpTex);
 	}
 	

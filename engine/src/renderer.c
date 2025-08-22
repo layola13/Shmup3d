@@ -27,6 +27,9 @@
 #include <math.h>
 #include "renderer_fixed.h"
 #include "renderer_progr.h"
+#ifdef __EMSCRIPTEN__
+#include "wasm_display.h"
+#endif
 #include "stats.h"
 #include "timer.h"
 #include "fx.h"
@@ -180,6 +183,11 @@ void SCR_Init(void)
 
 void SCR_BindMethods(int rendererType)
 {
+#ifdef __EMSCRIPTEN__
+	   // For WASM/Emscripten, we have a dedicated set of display functions
+	   // that interface with SDL/WebGL.
+	   wasm_display_bind_renderer_methods(&renderer);
+#else
 	if (rendererType == GL_11_RENDERER)
 	{
 		Log_Printf("[Renderer] Running in mode OpenGL ES 1.1\n");
@@ -188,9 +196,10 @@ void SCR_BindMethods(int rendererType)
 	
 	if (rendererType == GL_20_RENDERER)
 	{
-		Log_Printf("[Renderer] Running in mode OpenGL ES 2.0\n"); 
+		Log_Printf("[Renderer] Running in mode OpenGL ES 2.0\n");
 		initProgrRenderer(&renderer);
 	}
+#endif
 	
 	strcpy(scrFont.path,STATS_FONT_PATH);
 	TEX_MakeStaticAvailable(&scrFont);
